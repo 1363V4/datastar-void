@@ -32,11 +32,6 @@ body {
     50% { background-position: 100% 100%; }
 }
 
-.material-icons {
-    font-size: unset !important;
-    vertical-align: middle;
-}
-
 /* components */
 
 main {
@@ -45,7 +40,7 @@ main {
     place-items: center;
 }
 
-.message {
+.message, .message2 {
     position: absolute;
     transform: translate(-50%, -50%);
     padding: 0.5rem 1rem;
@@ -53,7 +48,19 @@ main {
     color: #fff;
     font-weight: bold;
     pointer-events: none;
+}
+
+.message {
     transition: opacity 1s linear;
+}
+
+.message2 {
+    animation: fadeout 10s linear forwards;
+}
+
+@keyframes fadeout {
+    from { opacity: 1; }
+    to { opacity: 0; }
 }
 
 input {

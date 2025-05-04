@@ -7,7 +7,6 @@ import redis.asyncio as redis
 import json
 import random
 import time
-import uuid
 
 
 # CONFIG
@@ -34,6 +33,7 @@ async def close_redis():
 async def before_request():
     if not session.get('user_id'): 
         session['user_id'] = fake.name()
+        # useful if we want the same user to always have the same color
 
 @app.route('/')
 async def index():
@@ -41,13 +41,9 @@ async def index():
 
 @app.route('/void')
 async def void():
-    # pubsub = redis_client.pubsub()
-    # await pubsub.subscribe('main')
-    
     async def event():
         while True:
             try:
-                # await pubsub.get_message()
                 keys = await redis_client.keys('msg-*')
                 if keys:
                     html = '<div id="messages">'
@@ -72,12 +68,8 @@ async def void():
                             </div>'''
                     html += '</div>'
                     yield SSE.merge_fragments(fragments=[html])
-                else:
-                    await asyncio.sleep(.2)
             except asyncio.CancelledError:
-                # await pubsub.unsubscribe('main')
-                break
-                
+                break                
     return await make_datastar_response(event())
 
 @app.post("/message")
@@ -95,7 +87,55 @@ async def post_message():
     
     msg_id = str(time.time()).replace(".", "-")
     await redis_client.set(f"msg-{msg_id}", json.dumps(payload), ex=10)
-    # await redis_client.publish('main', msg_id)
+    
+    return "", 200
+
+@app.route('/void2')
+async def void2():
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe('main')    
+    async def event():
+        while True:
+            try:
+                ping = await pubsub.get_message()
+                if ping and ping['type'] == "message":
+                    payload = json.loads(ping['data'])
+                    html = f'''
+                            <div
+                            class="message2"
+                            style="
+                                top:{payload['y']}%;
+                                left:{payload['x']}%;
+                                background:{payload['color']};
+                            "
+                            >
+                            {payload['message']}
+                            </div>'''
+                    yield SSE.merge_fragments(
+                        fragments=[html], 
+                        selector="#messages",
+                        merge_mode="prepend"
+                        )
+            except asyncio.CancelledError:
+                await pubsub.unsubscribe('main')
+                break
+                
+    return await make_datastar_response(event())
+
+@app.post("/message2")
+async def post_message2():
+    message = (await request.form).get('message')
+    if not message:
+        return "No message", 200
+        
+    payload = {
+        "message": message,
+        "color": f"#{random.randint(0, 0xFFFFFF):06x}",
+        "x": round(10 + random.random() * 80, 2),
+        "y": round(5 + random.random() * 80, 2),
+    }
+    
+    await redis_client.publish('main', json.dumps(payload))
     
     return "", 200
 
